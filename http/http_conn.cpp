@@ -224,6 +224,7 @@ bool http_conn::read_once()
             bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
             if (bytes_read == -1)
             {
+                //errno未EAGAIN说明没有数据可读
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
                     break;
                 return false;
@@ -241,6 +242,7 @@ bool http_conn::read_once()
 //解析http请求行，获得请求方法，目标url及http版本号
 http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
 {
+    //获取后一个字符在text的位置
     m_url = strpbrk(text, " \t");
     if (!m_url)
     {
@@ -248,6 +250,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     }
     *m_url++ = '\0';
     char *method = text;
+    //比较字符，忽略大小写
     if (strcasecmp(method, "GET") == 0)
         m_method = GET;
     else if (strcasecmp(method, "POST") == 0)
@@ -257,6 +260,8 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     }
     else
         return BAD_REQUEST;
+    //strspn(str, accept)
+    //返回代表字符串 str 开头连续有 n 个字符都是属于字符串 accept 内的字符。
     m_url += strspn(m_url, " \t");
     m_version = strpbrk(m_url, " \t");
     if (!m_version)
@@ -341,19 +346,24 @@ http_conn::HTTP_CODE http_conn::parse_content(char *text)
 
 http_conn::HTTP_CODE http_conn::process_read()
 {
+    ///初始化从状态机状态、HTTP请求解析结果
     LINE_STATUS line_status = LINE_OK;
     HTTP_CODE ret = NO_REQUEST;
     char *text = 0;
 
     while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) || ((line_status = parse_line()) == LINE_OK))
     {
+        //get_line获取一行的起始位置
         text = get_line();
+        //m_start_line是每一个数据行在m_read_buf中的起始位置
+        //m_checked_idx表示从状态机在m_read_buf中读取的位置
         m_start_line = m_checked_idx;
         LOG_INFO("%s", text);
         switch (m_check_state)
         {
         case CHECK_STATE_REQUESTLINE:
         {
+            //解析请求行
             ret = parse_request_line(text);
             if (ret == BAD_REQUEST)
                 return BAD_REQUEST;

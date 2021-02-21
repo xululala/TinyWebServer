@@ -9,7 +9,7 @@ class sem
 {
 public:
     sem()
-    {
+    {   //第二个参数pshared不为0则信号量在多进程中共享，否则在同一进程的线程中共享，初始化信号量计数为0
         if (sem_init(&m_sem, 0, 0) != 0)
         {
             throw std::exception();
