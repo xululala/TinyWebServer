@@ -224,7 +224,7 @@ bool http_conn::read_once()
             bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
             if (bytes_read == -1)
             {
-                //errno未EAGAIN说明没有数据可读
+                //errno为EAGAIN说明没有数据可读
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
                     break;
                 return false;
@@ -279,12 +279,23 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     if (strncasecmp(m_url, "https://", 8) == 0)
     {
         m_url += 8;
+        //strchr返回后一个字符在前一个字符串中第一次出现的位置
         m_url = strchr(m_url, '/');
     }
 
     if (!m_url || m_url[0] != '/')
         return BAD_REQUEST;
     //当url为/时，显示判断界面
+    /*
+    char*strcat(char* strDestination, const char* strSource);
+    参数说明：
+    strDestination：目的字符串；
+    strSource：源字符串。
+    strcat() 函数把 strSource 所指向的字符串追加到 strDestination 所指向的字符串的结尾，所以必须要保证 strDestination 有足够的内存空间来容纳两个字符串，
+    否则会导致溢出错误。
+    注意：strDestination 末尾的\0会被覆盖，strSource 末尾的\0会一起被复制过去，最终的字符串只有一个\0。
+    返回值：指向 strDestination 的指针。
+    */
     if (strlen(m_url) == 1)
         strcat(m_url, "judge.html");
     m_check_state = CHECK_STATE_HEADER;
@@ -548,6 +559,7 @@ bool http_conn::write()
 
         if (temp < 0)
         {
+            //判断缓冲区是否已满
             if (errno == EAGAIN)
             {
                 modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
@@ -561,6 +573,7 @@ bool http_conn::write()
         bytes_to_send -= temp;
         if (bytes_have_send >= m_iv[0].iov_len)
         {
+            //第一个iovec头部信息的数据已发送完，发送第二个iovec数据
             m_iv[0].iov_len = 0;
             m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
             m_iv[1].iov_len = bytes_to_send;
@@ -576,6 +589,7 @@ bool http_conn::write()
             unmap();
             modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
 
+            //判断是否为长连接
             if (m_linger)
             {
                 init();
